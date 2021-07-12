@@ -8,6 +8,9 @@ import schema from './schema';
 import resolvers from './resolvers';
 import models, {sequelize} from './models/index';
 
+import http from 'http';
+import { defaultTypeResolver } from "graphql";
+
 
 const app = express();
 
@@ -47,7 +50,14 @@ const server = new ApolloServer({
       ...error,
       message,
     };	},
-	context: async () => {
+	context: async ({req, connection}) => { //context contient req et response grace au httpServer
+		if (connection) {
+			return {
+			  models,
+			};
+		  }
+	   
+		  if (req) {
 		const me = await getMe(req);
 		
 		return {
@@ -56,11 +66,14 @@ const server = new ApolloServer({
 		secret: process.env.SECRET,
 		//me: models.users[1],
 	  		}
+		}
 	}
 });
 
-server.applyMiddleware({ app, path: '/graphql' });
+server.applyMiddleware({ app, path: '/graphql' }); //server est un middleware à app sur l'adress /graphql
 
+const httpServer = http.createServer(app);
+server.installSubscriptionHandlers(httpServer);
 
 const eraseDatabaseOnSync = true;
 // si le force à une valeur à false les donnée vont s'accumuler
@@ -70,7 +83,7 @@ sequelize.sync( {force: eraseDatabaseOnSync }).then(async ()=> {
 		createUsersWithMessages(new Date());
 	};
 
-	app.listen({ port: 8000}, () => {
+	httpServer.listen({ port: 8000}, () => {
 		console.log('Apollo server run on that temrinal on http://localhost:8000/graphql')
 	})	
 })

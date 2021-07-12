@@ -2,6 +2,8 @@ import { combineResolvers } from 'graphql-resolvers';
 
 import { isAuthenticated, isMessageOwner } from './authorization';
 
+import pubsub, {EVENTS} from '../subscription';
+
 const toCursorHash = string => Buffer.from(string).toString('base64');
  
 const fromCursorHash = string =>
@@ -34,12 +36,12 @@ export default {
 		  edges: edges,
 		  pageInfo: {
 			  hasNextPage,
-			  endCursor: toCursorHash(edges[edges.length -1].createdAt.toString(),
-			   ) }
+			  endCursor: toCursorHash(edges[edges.length -1].createdAt.toString()) 
+			}
 	  }
     },
     message: async (parent, { id }, { models }) => {
-      return await models.Message.findById(id);
+      return await models.Message.findByPk(id);
     },
   },
 
@@ -47,10 +49,15 @@ export default {
     createMessage: combineResolvers(
       isAuthenticated,
       async (parent, { text }, { models, me }) => {
-        return await models.Message.create({
+		const message = await models.Message.create({
           text,
           userId: me.id,
         });
+		pubsub.publish(EVENTS.MESSAGE.CREATED, {
+			messageCreated: { message },
+		});
+
+		return message;
       },
     ),
 
@@ -65,7 +72,14 @@ export default {
 
   Message: {
     user: async (message, args, { models }) => {
-      return await models.User.findById(message.userId);
+      return await models.User.findByPk(message.userId);
+    },
+  },
+
+
+  Subscription: {
+    messageCreated: {
+      subscribe: () => pubsub.asyncIterator(EVENTS.MESSAGE.CREATED),
     },
   },
 };
