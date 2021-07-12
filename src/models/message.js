@@ -4,6 +4,7 @@ const message = (sequelize, DataTypes) => {
     // La table message ne contient qu'un seul champ text    
         text: {
             type: DataTypes.STRING,
+            validate: { notEmpty: true },
         }
     });
 
