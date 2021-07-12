@@ -11,6 +11,8 @@ import models, {sequelize} from './models/index';
 import http from 'http';
 import { defaultTypeResolver } from "graphql";
 
+import DataLoader from 'dataloader';
+import loaders from './loaders';
 
 const app = express();
 
@@ -34,7 +36,19 @@ const getMe = async req => {
 	}
   };
 
+  const batchUsers = async (keys, models) => {
+	const users = await models.User.findAll({
+	  where: {
+		id: {
+		  $in: keys,
+		},
+	  },
+	});
+   
+	return keys.map(key => users.find(user => user.id === key));
+  };
 
+const userLoader = new DataLoader(keys => batchUsers(keys, models))
 
 const server = new ApolloServer({
 	typeDefs: schema, //type définition
@@ -65,6 +79,10 @@ const server = new ApolloServer({
 		me: me, // await models.User.findByLogin('rwieruch'),
 		secret: process.env.SECRET,
 		//me: models.users[1],
+		loaders: {
+			user: new DataLoader(keys =>
+				loaders.user.batchUsers(keys, models)), // permet d'économiser des requêtes
+		  },
 	  		}
 		}
 	}
@@ -75,11 +93,14 @@ server.applyMiddleware({ app, path: '/graphql' }); //server est un middleware à
 const httpServer = http.createServer(app);
 server.installSubscriptionHandlers(httpServer);
 
-const eraseDatabaseOnSync = true;
-// si le force à une valeur à false les donnée vont s'accumuler
-sequelize.sync( {force: eraseDatabaseOnSync }).then(async ()=> {
 
-	if(eraseDatabaseOnSync){
+
+const isTest = !!process.env.TEST_DATABASE;
+
+// si le force à une valeur à false les donnée vont s'accumuler
+sequelize.sync( {force: isTest }).then(async ()=> {
+
+	if(isTest){
 		createUsersWithMessages(new Date());
 	};
 

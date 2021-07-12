@@ -71,8 +71,9 @@ export default {
   },
 
   Message: {
-    user: async (message, args, { models }) => {
-      return await models.User.findByPk(message.userId);
+    //utilisation de loader pour économiser des requêtes
+    user: async (message, args, { loaders }) => {
+      return await loaders.user.load(message.userId);
     },
   },
 
